@@ -180,3 +180,28 @@ def cart_pole_cost(states_sequence, inputs_sequence, trial_index, target_state, 
     return 1 - torch.exp(
         -(((torch.abs(theta) - target_theta) / lengthscales[0]) ** 2) - ((x - target_x) / lengthscales[1]) ** 2
     )
+
+
+
+
+
+
+class CartpoleQuanser_cost(Expected_cost):
+    """Cost for the cart pole system:
+    target is assumed in the instable equilibrium configuration defined in 'target_state' (target angle [rad], target position [m]).
+    """
+    def rwd(self, x, u):
+        x_c, xd, th, thd  = x[:, :, 0], x[:, :, 1], x[:, :, 2], x[:, :, 3]
+        th_err = (th % (2 * torch.pi) - torch.pi) / torch.pi
+        rwd = torch.ones_like(th_err) - torch.pow(th_err,2) - 1e-3 * torch.pow(thd,2) - 1e-3 * torch.pow(xd,2) - torch.pow(u[:,:,0] / 25,2)
+        done = torch.abs(x_c) >  0.814 / 2.0  # [m]
+        task = torch.clip(rwd, 0, 1)
+        domain = -1.0 * done
+        return task + domain
+
+    def f_cost(self, x, u, trial_index):
+        return - self.rwd(x, u)
+
+    def __init__(self, **kwargs):
+        # initit the superclass with the lambda function
+        super(CartpoleQuanser_cost, self).__init__(self.f_cost)

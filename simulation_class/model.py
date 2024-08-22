@@ -20,7 +20,7 @@ class Model:
     Dynamic System simulation
     """
 
-    def __init__(self, fcn):
+    def __init__(self, fcn, fstate):
         """
         fcn: function defining the dynamics dx/dt = fcn(x, t, policy)
         x: state (it can be an array)
@@ -28,6 +28,7 @@ class Model:
         policy: function u = policy(x)
         """
         self.fcn = fcn  # ODE of system dynamics
+        self.fstate = fstate
 
     def rollout(self, s0, policy, T, dt, noise):
         """
@@ -58,9 +59,15 @@ class Model:
             u = np.array(policy(noisy_states[i, :], t))
             inputs[i, :] = u
             # get state
-            odeint_out = odeint(self.fcn, states[i, :], [t, t + dt], args=(u,))
-            states[i + 1, :] = odeint_out[1]
-            noisy_states[i + 1, :] = odeint_out[1] + np.random.randn(state_dim) * noise
+            new_state = odeint(self.fcn, states[i, :], [t, t + dt], args=(u,))[1]
+            #new_state = self.fstate(states[i, :], dt, u[0,0]) #odeint_out[1]
+
+            # new_state = self.fstate(states[i, :], dt, u[0,0])
+            # if not np.array_equal( odeint_out[1], new_state):
+            #     print(odeint_out[1], new_state, states[i, :], dt, u[0,0])
+
+            states[i + 1, :] = new_state
+            noisy_states[i + 1, :] = new_state + np.random.randn(state_dim) * noise
 
         # last u (only to have the same number of input and state samples)
         inputs[-1, :] = np.array(policy(noisy_states[-1, :], T))

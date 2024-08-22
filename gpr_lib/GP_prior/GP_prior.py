@@ -104,12 +104,19 @@ class GP_prior(torch.nn.Module):
 
         # inverse with cholesky
         U = torch.cholesky(K_X, upper=True)
+        #print("U : ", torch.linalg.eigvalsh(U).min(), " - ", torch.linalg.eigvalsh(U).max())
         log_det = 2 * torch.sum(torch.log(torch.diag(U)))
 
         U_inv = torch.inverse(U)
+        #print("U_inv : ", torch.linalg.eigvalsh(U_inv).min(), " - ", torch.linalg.eigvalsh(U_inv).max())
         K_X_inv = torch.matmul(U_inv, U_inv.transpose(0, 1))
-
+        
+        
+        #print("K_X_inv : ", torch.linalg.eigvalsh(K_X_inv).min(), " - ", torch.linalg.eigvalsh(K_X_inv).max())
+        
         # K_X_inv = torch.cholesky_inverse(U, upper=True)
+        #K_X_inv2 = torch.cholesky_inverse(U, upper=True)
+        #print("K_X_inv2 : ", torch.linalg.eigvalsh(K_X_inv2).min(), " - ", torch.linalg.eigvalsh(K_X_inv2).max())
 
         m_X = self.get_mean(X)
         return m_X, K_X, K_X_inv, log_det
@@ -150,6 +157,11 @@ class GP_prior(torch.nn.Module):
         if K_X_inv is not None:
             num_test = X_test.size()[0]
             var = self.get_diag_covariance(X_test) - torch.sum(torch.matmul(K_X_test_X, K_X_inv) * (K_X_test_X), dim=1)
+            #if var.min() < 0: #torch.any(torch.isnan(var)):
+            #    print("?nan?? ", var.reshape([-1, 1]))#, torch.sqrt(var.reshape([-1, 1])))
+#           #     print()    
+            #else:
+            #    print("fine")
             return Y_hat, var
         else:
             return Y_hat

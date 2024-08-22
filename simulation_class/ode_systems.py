@@ -66,3 +66,117 @@ def cartpole(y, t, u):
         / (l * den),
     ]
     return dydt
+
+def cartpoleQuanser(y, t, u):
+    """
+    Predict change in state given current state and action in discrete time.
+    Using a custom friction function
+    """
+    # from clients/quanser_robots/cartpole/base.py:CartpoleDynamics
+    g = 9.81  # gravity
+    #dt = 0.05
+    x, x_dot, theta, theta_dot = y
+
+    p = np.array(
+            [
+                1.00,  # eta_m, Motor efficiency  []
+                1.00,  # eta_g, Planetary Gearbox Efficiency []
+                3.71,  # Kg,  Planetary Gearbox Gear Ratio
+                3.9e-7,  # Jm,  Rotor inertia [kg.m^2]
+                6.35e-3,  # r_mp,  Motor Pinion radius [m]
+                2.60,  # Rm,  Motor armature Resistance [Ohm]
+                0.00767,  # Kt, Motor Torque Constant [N.zz/A]
+                0.00767,  # Km, Motor Torque Constant [N.zz/A]
+                0.370,  # mc,  Mass of the cart [kg]
+                0.127,  # mp, Mass of the pole [kg]
+                0.3365 / 2.0,  # pl, Half of the pole length [m]
+                5.400,  # Beq, Equivalent Viscous damping Coefficient
+                0.0048,  # Bp, Viscous coefficient at the pole (was 0.0024, but this could be too unstable)
+            ]
+        )
+    eta_m, eta_g, Kg, Jm, r_mp, Rm, Kt, Km, mc, mp, pl, Beq, Bp = p.T
+
+    Jp = pl**2 * mp / 3.0  # Pole inertia [kg.m^2]
+    Jeq = mc + (eta_g * Kg**2 * Jm) / (r_mp**2)
+
+    # Compute force acting on the cart:
+    F = (
+        (eta_g * Kg * eta_m * Kt)
+        / (Rm * r_mp)
+        * (-Kg * Km * x_dot / r_mp + eta_m * u)
+    )
+
+    # Compute acceleration:
+    a, b = mp + Jeq, mp * pl * np.cos(theta)
+    c, d = mp * pl * np.cos(theta), Jp + mp * pl**2
+    dd = a * d - b * c
+
+    f_x, f_theta = np.asarray([Beq, Bp]) * np.asarray([x_dot, theta_dot])
+
+    x, y = F - f_x - mp * pl * np.sin(
+        theta
+    ) * theta_dot**2, 0.0 - f_theta - mp * pl * g * np.sin(theta)
+
+    x_ddot, theta_ddot = (d * x - b * y) / dd, (-c * x + a * y) / dd
+
+    return [x_dot, x_ddot, theta_dot, theta_ddot]
+
+
+def cartpoleQuanserState(y, dt, u):
+    """
+    Predict change in state given current state and action in discrete time.
+    Using a custom friction function
+    """
+    # from clients/quanser_robots/cartpole/base.py:CartpoleDynamics
+    g = 9.81  # gravity
+    x, x_dot, theta, theta_dot = y
+
+    p = np.array(
+            [
+                1.00,  # eta_m, Motor efficiency  []
+                1.00,  # eta_g, Planetary Gearbox Efficiency []
+                3.71,  # Kg,  Planetary Gearbox Gear Ratio
+                3.9e-7,  # Jm,  Rotor inertia [kg.m^2]
+                6.35e-3,  # r_mp,  Motor Pinion radius [m]
+                2.60,  # Rm,  Motor armature Resistance [Ohm]
+                0.00767,  # Kt, Motor Torque Constant [N.zz/A]
+                0.00767,  # Km, Motor Torque Constant [N.zz/A]
+                0.370,  # mc,  Mass of the cart [kg]
+                0.127,  # mp, Mass of the pole [kg]
+                0.3365 / 2.0,  # pl, Half of the pole length [m]
+                5.400,  # Beq, Equivalent Viscous damping Coefficient
+                0.0048,  # Bp, Viscous coefficient at the pole (was 0.0024, but this could be too unstable)
+            ]
+        )
+    eta_m, eta_g, Kg, Jm, r_mp, Rm, Kt, Km, mc, mp, pl, Beq, Bp = p.T
+
+    Jp = pl**2 * mp / 3.0  # Pole inertia [kg.m^2]
+    Jeq = mc + (eta_g * Kg**2 * Jm) / (r_mp**2)
+
+    # Compute force acting on the cart:
+    F = (
+        (eta_g * Kg * eta_m * Kt)
+        / (Rm * r_mp)
+        * (-Kg * Km * x_dot / r_mp + eta_m * u)
+    )
+
+    # Compute acceleration:
+    a, b = mp + Jeq, mp * pl * np.cos(theta)
+    c, d = mp * pl * np.cos(theta), Jp + mp * pl**2
+    dd = a * d - b * c
+
+    f_x, f_theta = np.asarray([Beq, Bp]) * np.asarray([x_dot, theta_dot])
+
+    x_, y_ = F - f_x - mp * pl * np.sin(
+        theta
+    ) * theta_dot**2, 0.0 - f_theta - mp * pl * g * np.sin(theta)
+
+    x_ddot, theta_ddot = (d * x_ - b * y_) / dd, (-c * x_ + a * y_) / dd
+
+
+    x_dot += dt * x_ddot
+    theta_dot += dt * theta_ddot
+
+    return y + dt * np.array( [x_dot, x_ddot, theta_dot, theta_ddot] )
+
+
