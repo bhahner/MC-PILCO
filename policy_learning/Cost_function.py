@@ -205,3 +205,42 @@ class CartpoleQuanser_cost(Expected_cost):
     def __init__(self, **kwargs):
         # initit the superclass with the lambda function
         super(CartpoleQuanser_cost, self).__init__(self.f_cost)
+
+
+
+class FurutaQuanser_cost(Expected_cost):
+    """Cost for the cart pole system:
+    target is assumed in the instable equilibrium configuration defined in 'target_state' (target angle [rad], target position [m]).
+    """
+    def rwd(self, x, u):
+        th, thd, al, ald, a = x[:, :, 0], x[:, :, 1], x[:, :, 2], x[:, :, 3], u[:,:,0]
+        al_mod = al % (2 * torch.pi) - torch.pi
+
+        factor = [0.96, 0.039, 0.001]
+        scales = [torch.pi, 2.0, 5.0]
+
+        err_dist = th
+        err_rot = al_mod
+        err_act = a
+
+        rotation_rew = torch.pow(torch.ones_like(err_rot) - torch.abs(err_rot / scales[0]), 2)
+        distance_rew = torch.pow(torch.ones_like(err_dist) - torch.abs(err_dist / scales[1]), 2)
+        action_rew = torch.pow(torch.ones_like(err_act) - torch.abs(err_act / scales[2]), 2)
+
+        rew = (
+              factor[0] * rotation_rew
+            + factor[1] * distance_rew
+            + factor[2] * action_rew
+            - 3e-5 * torch.pow(thd, 2)
+            - 3e-5 * torch.pow(ald, 2)
+        )
+        task = torch.clip(rew, 0, 1)
+        domain = - torch.ones_like(th) * (torch.abs(th) > 0.75)
+        return task + domain
+
+    def f_cost(self, x, u, trial_index):
+        return - self.rwd(x, u)
+
+    def __init__(self, **kwargs):
+        # initit the superclass with the lambda function
+        super(FurutaQuanser_cost, self).__init__(self.f_cost)

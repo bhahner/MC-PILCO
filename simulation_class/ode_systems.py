@@ -180,3 +180,69 @@ def cartpoleQuanserState(y, dt, u):
     return y + dt * np.array( [x_dot, x_ddot, theta_dot, theta_ddot] )
 
 
+
+def furutaQuanser(y, t, u):
+    """
+    Predict change in state given current state and action in discrete time.
+    Using a custom friction function
+    """
+    # from clients/quanser_robots/qube/base.py:QubeDynamics
+    g = 9.81  # gravity
+
+    theta, theta_dot, alpha, alpha_dot = y
+
+    p = np.array(
+            [
+                # Motor
+                8.4,  # Rm, resistance
+                0.042,  # km, back-emf constant (V-s/rad)
+                # Rotary arm
+                0.095,  # Mr  # mass (kg)
+                0.085,  # Lr  # length (m)
+                5e-4,  # Dr  # viscous damping (N-m-s/rad), original: 0.0015
+                # Pendulum link
+                0.024,  # Mp  # mass (kg)
+                0.129,  # Lp  # length (m)
+                1e-4,  # Dp  # viscous damping (N-m-s/rad), original: 0.0005
+            ])
+    Rm, km, Mr, Lr, Dr, Mp, Lp, Dp = p
+
+    # Moments of inertia
+    Jr = Mr * Lr**2 / 12  # inertia about COM (kg-m^2)
+    Jp = Mp * Lp**2 / 12  # inertia about COM (kg-m^2)
+
+    # Constants for equations of motion
+    # _c = jnp.zeros(5)
+    _c0 = Jr + Mp * Lr**2
+    _c1 = 0.25 * Mp * Lp**2
+    _c2 = 0.5 * Mp * Lp * Lr
+    _c3 = Jp + _c1
+    _c4 = 0.5 * Mp * Lp * g
+
+    # Define mass matrix M = [[a, b], [b, c]]
+    a = _c0 + _c1 * np.sin(alpha) ** 2
+    b = _c2 * np.cos(alpha)
+    c = _c3
+    d = a * c - b * b
+
+    # Calculate vector [x, y] = tau - C(q, qd)
+    trq = km * (u - km * theta_dot) / Rm
+    c0 = (
+        _c1 * np.sin(2 * alpha) * theta_dot * alpha_dot
+        - _c2 * np.sin(alpha) * alpha_dot * alpha_dot
+    )
+    c1 = -0.5 * _c1 * np.sin(2 * alpha) * theta_dot * theta_dot + _c4 * np.sin(
+        alpha
+    )
+
+    f_theta, f_alpha = np.asarray([Dr, Dp]) * np.asarray([theta_dot, alpha_dot])
+
+
+    x = trq - f_theta - c0
+    y = -f_alpha - c1
+
+    # Compute M^{-1} @ [x, y]
+    theta_ddot = (c * x - b * y) / d
+    alpha_ddot = (a * y - b * x) / d
+
+    return [theta_dot, theta_ddot, alpha_dot, alpha_ddot]
