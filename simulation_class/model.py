@@ -20,7 +20,7 @@ class Model:
     Dynamic System simulation
     """
 
-    def __init__(self, fcn, fstate):
+    def __init__(self, fcn, fstate=None):
         """
         fcn: function defining the dynamics dx/dt = fcn(x, t, policy)
         x: state (it can be an array)

@@ -47,7 +47,7 @@ num_threads = 20
 torch.set_num_threads(num_threads)
 
 print("---- Set environment parameters ----")
-num_trials = 5  # Total trials
+num_trials = 15  # Total trials
 
 """ would be nice if it worked...
 T_sampling = 0.01  # Sampling time
@@ -187,7 +187,7 @@ MC_PILCO_init_dict["T_sampling"] = T_sampling
 MC_PILCO_init_dict["state_dim"] = state_dim
 MC_PILCO_init_dict["input_dim"] = input_dim
 MC_PILCO_init_dict["f_sim"] = ode_fun
-MC_PILCO_init_dict["fs_sim"] = state_fun
+#MC_PILCO_init_dict["fs_sim"] = state_fun
 MC_PILCO_init_dict["std_meas_noise"] = np.array(std_list)
 MC_PILCO_init_dict["f_model_learning"] = f_model_learning  # Model function to be trained
 MC_PILCO_init_dict["model_learning_par"] = model_learning_par  # Model function parameters
@@ -202,6 +202,7 @@ MC_PILCO_init_dict["cost_function_par"] = cost_function_par  # Cost function par
 MC_PILCO_init_dict["log_path"] = path #"results_tmp/" + str(seed)  # path to save logs of the experiments
 MC_PILCO_init_dict["dtype"] = dtype
 MC_PILCO_init_dict["device"] = device
+MC_PILCO_init_dict["wandb"] = True
 PL_obj = MC_PILCO.MC_PILCO(**MC_PILCO_init_dict)  # Main object of the algorithm with MC-PILCO properties
 
 print("\n---- Set MC-PILCO options ----")
@@ -222,11 +223,23 @@ policy_optimization_dict["opt_steps_list"] = [
     4000,
     4000,
     4000,
+
+    4000,
+    4000,
+    4000,
+    4000,
+    4000,
+    4000,
+    4000,
+    4000,
+    4000,
+    4000,
 ]  # Max number of optimization steps for trial
-policy_optimization_dict["lr_list"] = [0.01, 0.01, 0.01, 0.01, 0.01]  # Initial learning for trial
+assert len(policy_optimization_dict["opt_steps_list"])==num_trials
+policy_optimization_dict["lr_list"] = [0.01,] * num_trials # Initial learning for trial
 policy_optimization_dict["f_optimizer"] = "lambda p, lr : torch.optim.Adam(p, lr)"  # Specify policy optimizer
 policy_optimization_dict["num_step_print"] = 100  # Frequency of printing to screen partial results
-policy_optimization_dict["p_dropout_list"] = [0.25, 0.25, 0.25, 0.25, 0.25]  # Dropout initial probability for trial
+policy_optimization_dict["p_dropout_list"] = [0.25,] * num_trials  # Dropout initial probability for trial
 policy_optimization_dict["p_drop_reduction"] = 0.25 / 2  # Dropout reduction parameter
 policy_optimization_dict["alpha_diff_cost"] = 0.99  # Monitoring signal parameter α_s for early stopping criterion
 policy_optimization_dict["min_diff_cost"] = 0.08  # Monitoring signal parameter σ_s for early stopping criterion

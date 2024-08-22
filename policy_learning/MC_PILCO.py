@@ -37,7 +37,6 @@ class MC_PILCO(torch.nn.Module):
         state_dim,
         input_dim,
         f_sim,
-        fs_sim,
         f_model_learning,
         model_learning_par,
         f_rand_exploration_policy,
@@ -50,6 +49,7 @@ class MC_PILCO(torch.nn.Module):
         log_path=None,
         dtype=torch.float64,
         device=torch.device("cpu"),
+        wandb=False,
     ):
         super(MC_PILCO, self).__init__()
         # model parameters
@@ -60,7 +60,7 @@ class MC_PILCO(torch.nn.Module):
         self.input_dim = input_dim  # input dimension
         # get the simulated system
         print("\n\nGet the system...")
-        self.system = model.Model(f_sim, fs_sim)  # ODE-simulated system
+        self.system = model.Model(f_sim)  # ODE-simulated system
         if std_meas_noise is None:
             std_meas_noise = np.zeros(state_dim)
         self.std_meas_noise = std_meas_noise  # measurement noise
@@ -86,6 +86,8 @@ class MC_PILCO(torch.nn.Module):
         self.log_path = log_path
         if self.log_path is not None:
             self.log_dict = {}
+
+        self.wandb = wandb
 
     def reinforce(
         self,
@@ -222,22 +224,23 @@ class MC_PILCO(torch.nn.Module):
                 pkl.dump(self.log_dict, open(self.log_path + "/log.pkl", "wb"))
             self.model_learning.set_training_mode()
 
-            # get cost
-            cost = (
-                self.cost_function(
-                    torch.tensor(self.noiseless_states_history[-1], dtype=self.dtype, device=self.device).unsqueeze(1),
-                    torch.tensor(self.input_samples_history[-1], dtype=self.dtype, device=self.device).unsqueeze(1),
-                    trial_index=trial_index,
-                )[0]
-                .detach()
-                .cpu()
-                .numpy()
-                .squeeze()
-            )
-            wandb.log( {
-                "episode_return": -cost,
-                "episode_cost": cost,
-            } )
+            if self.wandb:
+                # get cost
+                cost = (
+                    self.cost_function(
+                        torch.tensor(self.noiseless_states_history[-1], dtype=self.dtype, device=self.device).unsqueeze(1),
+                        torch.tensor(self.input_samples_history[-1], dtype=self.dtype, device=self.device).unsqueeze(1),
+                        trial_index=trial_index,
+                    )[0]
+                    .detach()
+                    .cpu()
+                    .numpy()
+                    .squeeze()
+                )
+                wandb.log( {
+                    "episode_return": -cost,
+                    "episode_cost": cost,
+                } )
 
             # test policy
             if random_initial_state == True:
