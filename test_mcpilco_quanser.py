@@ -8,7 +8,7 @@ MERL:	    Diego Romeres (romeres@merl.com)
 """
 
 """
-Test MC-PILCO on a simulated furuta system (GPs equipped with square-exponential + polynomial kernels)
+Test MC-PILCO on a simulated cart-pole system (GPs equipped with square-exponential + polynomial kernels)
 """
 
 import argparse
@@ -27,7 +27,9 @@ import torch
 
 # Load random seed from command line
 p = argparse.ArgumentParser("test cartpole")
-p.add_argument("-seed", type=int, default=1, help="seed")
+p.add_argument("--seed", type=int, default=1, help="seed")
+p.add_argument("--note", type=str, default="test", help="note")
+p.add_argument("--env_name", type=str, choices=["CartpoleSimShort-100-v0", "QubeSim-100-v0"])
 locals().update(vars(p.parse_known_args()[0]))
 
 # Set the seed
@@ -43,17 +45,27 @@ torch.set_default_dtype(dtype)
 device=torch.device('cuda:0')
 
 # Set number of computational threads
-num_threads = 20
+num_threads = 10
 torch.set_num_threads(num_threads)
 
 print("---- Set environment parameters ----")
-num_trials = 15  # Total trials
+num_trials = 24  # Total trials
 
-""" would be nice if it worked...
-T_sampling = 0.01  # Sampling time
-T_exploration = 2.56  # Duration of the first exploration trial
-T_control = 2.56  # Duration of each of the following trials during learning
-"""
+print("SEED: ", seed, " NOTE: ", note, "ENV_NAME: ", env_name)
+
+if env_name == "CartpoleSimShort-100-v0":
+    ode_fun = f_ode.cartpoleQuanser #f_ode.cartpole  # Dynamic ODE of the simulated system
+    u_max = 25.0  # Input upperbound limit
+
+    # Set the cost function
+    f_cost_function = Cost_function.CartpoleQuanser_cost
+elif env_name == "QubeSim-100-v0":
+    ode_fun = f_ode.furutaQuanser  # Dynamic ODE of the simulated system
+    u_max = 6.0  # Input upperbound limit
+
+    # Set the cost function
+    f_cost_function = Cost_function.FurutaQuanser_cost
+
 T_sampling = 0.05  # Sampling time
 T_exploration = 3.0  # Duration of the first exploration trial
 T_control = 3.0  # Duration of each of the following trials during learning
@@ -62,9 +74,6 @@ state_dim = 4  # State dimension
 input_dim = 1  # Input dimension
 num_gp = int(state_dim / 2)  # Number of Gaussian Processes to learn
 gp_input_dim = 6  # Dimension of the input the Gaussian Process Regression
-ode_fun = f_ode.furutaQuanser  # Dynamic ODE of the simulated system
-env_name = "QubeSim-100-v0"
-u_max = 6.0  # Input upperbound limit
 std_noise = 10 ** (-2)  # Standard deviation of the measurement noise ...
 std_list = std_noise * np.ones(state_dim)  # ... for all state dimensions
 fl_SOD_GP = True  # Flag to select if to use or not a Subset of Data (SoD) approximation in the GPs
@@ -86,8 +95,8 @@ f_model_learning = ML.Speed_Model_learning_RBF_MPK_angle_state  # Model function
 print(f_model_learning)
 model_learning_par = {}
 model_learning_par["num_gp"] = num_gp
-model_learning_par["angle_indeces"] = [0,2]  # Indeces of the GP input components that are angles
-model_learning_par["not_angle_indeces"] = [1, 3]  # Indeces of the GP input components that are not angles
+model_learning_par["angle_indeces"] = [2]  # Indeces of the GP input components that are angles
+model_learning_par["not_angle_indeces"] = [0, 1, 3]  # Indeces of the GP input components that are not angles
 model_learning_par["T_sampling"] = T_sampling
 model_learning_par["vel_indeces"] = [1, 3]  # Indeces of the GP input components that are velocities
 model_learning_par["not_vel_indeces"] = [0, 2]  # Indeces of the GP input components that are not velocities
@@ -169,8 +178,6 @@ policy_reinit_dict["weight_par"] = u_max
 
 
 print("\n---- Set cost function ----")
-# Set the cost function
-f_cost_function = Cost_function.FurutaQuanser_cost
 # Set the parameters for the selected cost function
 cost_function_par = {}
 cost_function_par["pos_index"] = 0  # Index of p in the state vector
@@ -233,6 +240,16 @@ policy_optimization_dict["opt_steps_list"] = [
     4000,
     4000,
     4000,
+    4000,
+    4000,
+    4000,
+    4000,
+    4000,
+
+    4000,
+    4000,
+    4000,
+    4000,
 ]  # Max number of optimization steps for trial
 assert len(policy_optimization_dict["opt_steps_list"])==num_trials
 policy_optimization_dict["lr_list"] = [0.01,] * num_trials # Initial learning for trial
@@ -277,14 +294,19 @@ wandb.init(
     entity="sim2gp",
     dir=dir_,
     name=f"{'MC-PILCO'}_{env_name}_{now}",
-    #group=parser_args.note,
+    group=note,
     tags=[
         "MC-PILCO",
         env_name,
         device.type,
     ],
 )
-wandb.config.update({"seed":seed})
+wandb.config.update({   "seed":seed,
+                        "env_name":env_name,
+                        "method":"PsrlOnPolicy",
+                        "model_type":"mc-pilco",
+                        "note": note
+                    })
 wandb.define_metric("episode_return", summary="mean")
 wandb.define_metric("episode_cost", summary="mean")
 

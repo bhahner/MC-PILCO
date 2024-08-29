@@ -168,5 +168,8 @@ cython_debug/
 .DS_Store
 *.pyc
 **/__pycache__/
-# results_tmp/
+
+
+results_tmp/
+wandb/
 # !results_tmp/.gitkeep

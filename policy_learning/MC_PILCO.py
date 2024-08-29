@@ -153,78 +153,106 @@ class MC_PILCO(torch.nn.Module):
             first_trial_index = num_past_trials - 1
             last_trial_index = num_trials + num_past_trials - 1
 
+        highest_return=-np.inf
+        cumulative_return=0.0
+
+        try_reinforce = True
+
         # reinforce the model and the policy
         for trial_index in range(first_trial_index, last_trial_index):
             print("\n\n\n\n----------------- TRIAL " + str(trial_index) + " -----------------")
             # train GPs on observed interaction data
-            print("\n\n----- REINFORCE THE MODEL -----")
-            self.model_learning.reinforce_model(optimization_opt_list=model_optimization_opt_list)
 
-            with torch.no_grad():
-                if self.log_path is not None:
-                    print("Save log file...")
-                    self.log_dict["parameters_gp_" + str(trial_index)] = [
-                        copy.deepcopy(self.model_learning.gp_list[k].state_dict())
-                        for k in range(0, self.model_learning.num_gp)
-                    ]
-                    self.log_dict["gp_inputs_" + str(trial_index)] = self.model_learning.gp_inputs
-                    self.log_dict["gp_output_list_" + str(trial_index)] = self.model_learning.gp_output_list
-                    self.log_dict["state_samples_history"] = self.state_samples_history
-                    self.log_dict["input_samples_history"] = self.input_samples_history
-                    self.log_dict["noiseless_states_history"] = self.noiseless_states_history
-                    pkl.dump(self.log_dict, open(self.log_path + "/log.pkl", "wb"))
+            if try_reinforce:
+                try:
+                    print("\n\n----- REINFORCE THE MODEL -----")
+                    self.model_learning.reinforce_model(optimization_opt_list=model_optimization_opt_list)
 
-                # get model learning performance
-                print("\n\n----- CHECK THE LEARNING PERFORMANCE (after model update) -----")
-                _, _, _, _ = self.get_model_learning_performance(data_collection_index=trial_index)
-                # get policy performance
-                print("\n\n----- CHECK THE ROLLOUT PERFORMANCE (after model update) -----")
-                _, _, _ = self.get_rollout_prediction_performance(data_collection_index=trial_index, add_name="post_tr")
+                    with torch.no_grad():
+                        if self.log_path is not None:
+                            print("Save log file...")
+                            self.log_dict["parameters_gp_" + str(trial_index)] = [
+                                copy.deepcopy(self.model_learning.gp_list[k].state_dict())
+                                for k in range(0, self.model_learning.num_gp)
+                            ]
+                            self.log_dict["gp_inputs_" + str(trial_index)] = self.model_learning.gp_inputs
+                            self.log_dict["gp_output_list_" + str(trial_index)] = self.model_learning.gp_output_list
+                            self.log_dict["state_samples_history"] = self.state_samples_history
+                            self.log_dict["input_samples_history"] = self.input_samples_history
+                            self.log_dict["noiseless_states_history"] = self.noiseless_states_history
+                            pkl.dump(self.log_dict, open(self.log_path + "/log.pkl", "wb"))
 
-                if flg_init_uniform == True:
-                    particles_init_up_bound = torch.tensor(init_up_bound, dtype=self.dtype, device=self.device)
-                    particles_init_low_bound = torch.tensor(init_low_bound, dtype=self.dtype, device=self.device)
-                else:
-                    particles_init_up_bound = None
-                    particles_init_low_bound = None
+                        # get model learning performance
+                        print("\n\n----- CHECK THE LEARNING PERFORMANCE (after model update) -----")
+                        _, _, _, _ = self.get_model_learning_performance(data_collection_index=trial_index)
+                        # get policy performance
+                        print("\n\n----- CHECK THE ROLLOUT PERFORMANCE (after model update) -----")
+                        _, _, _ = self.get_rollout_prediction_performance(data_collection_index=trial_index, add_name="post_tr")
 
-                particles_initial_state_mean = torch.tensor(initial_state, dtype=self.dtype, device=self.device)
-                particles_initial_state_var = torch.tensor(initial_state_var, dtype=self.dtype, device=self.device)
+                        if flg_init_uniform == True:
+                            particles_init_up_bound = torch.tensor(init_up_bound, dtype=self.dtype, device=self.device)
+                            particles_init_low_bound = torch.tensor(init_low_bound, dtype=self.dtype, device=self.device)
+                        else:
+                            particles_init_up_bound = None
+                            particles_init_low_bound = None
 
-            print("\n\n----- REINFORCE THE POLICY -----")
-            self.model_learning.set_eval_mode()
+                        particles_initial_state_mean = torch.tensor(initial_state, dtype=self.dtype, device=self.device)
+                        particles_initial_state_var = torch.tensor(initial_state_var, dtype=self.dtype, device=self.device)
 
-            # update the policy based on particle-simulation with the learned model
-            cost_list, std_cost_list, particles_states, particles_inputs = self.reinforce_policy(
-                T_control=T_control,
-                particles_initial_state_mean=particles_initial_state_mean,
-                particles_initial_state_var=particles_initial_state_var,
-                flg_particles_init_uniform=flg_init_uniform,
-                particles_init_up_bound=particles_init_up_bound,
-                particles_init_low_bound=particles_init_low_bound,
-                flg_particles_init_multi_gauss=flg_init_multi_gauss,
-                trial_index=trial_index,
-                **policy_optimization_dict
-            )
+                    print("\n\n----- REINFORCE THE POLICY -----")
+                    self.model_learning.set_eval_mode()
 
-            # save cost components
-            cost_trial_list.append(cost_list)
-            std_cost_trial_list.append(std_cost_list)
-            particles_states_list.append(particles_states)
-            particles_inputs_list.append(particles_inputs)
-            parameters_trial_list.append(copy.deepcopy(self.control_policy.state_dict()))
+                    # update the policy based on particle-simulation with the learned model
+                    cost_list, std_cost_list, particles_states, particles_inputs = self.reinforce_policy(
+                        T_control=T_control,
+                        particles_initial_state_mean=particles_initial_state_mean,
+                        particles_initial_state_var=particles_initial_state_var,
+                        flg_particles_init_uniform=flg_init_uniform,
+                        particles_init_up_bound=particles_init_up_bound,
+                        particles_init_low_bound=particles_init_low_bound,
+                        flg_particles_init_multi_gauss=flg_init_multi_gauss,
+                        trial_index=trial_index,
+                        **policy_optimization_dict
+                    )
 
-            if self.log_path is not None:
-                print("Save log file...")
-                self.log_dict["cost_trial_list"] = cost_trial_list
-                self.log_dict["std_cost_trial_list"] = std_cost_trial_list
-                self.log_dict["parameters_trial_list"] = parameters_trial_list
-                self.log_dict["particles_states_list"] = particles_states_list
-                self.log_dict["particles_inputs_list"] = particles_inputs_list
-                pkl.dump(self.log_dict, open(self.log_path + "/log.pkl", "wb"))
-            self.model_learning.set_training_mode()
+                    # save cost components
+                    cost_trial_list.append(cost_list)
+                    std_cost_trial_list.append(std_cost_list)
+                    particles_states_list.append(particles_states)
+                    particles_inputs_list.append(particles_inputs)
+                    parameters_trial_list.append(copy.deepcopy(self.control_policy.state_dict()))
+
+                    if self.log_path is not None:
+                        print("Save log file...")
+                        self.log_dict["cost_trial_list"] = cost_trial_list
+                        self.log_dict["std_cost_trial_list"] = std_cost_trial_list
+                        self.log_dict["parameters_trial_list"] = parameters_trial_list
+                        self.log_dict["particles_states_list"] = particles_states_list
+                        self.log_dict["particles_inputs_list"] = particles_inputs_list
+                        pkl.dump(self.log_dict, open(self.log_path + "/log.pkl", "wb"))
+                    self.model_learning.set_training_mode()
+
+                    # test policy
+                    if random_initial_state == True:
+                        if flg_init_uniform == True:
+                            x0 = np.random.uniform(init_low_bound, init_up_bound)
+                        elif flg_init_multi_gauss == True:
+                            num_init = np.random.randint(initial_state.shape[0])
+                            x0 = np.random.normal(initial_state[num_init, :], np.sqrt(initial_state_var[num_init, :]))
+                        else:
+                            x0 = np.random.normal(initial_state, np.sqrt(initial_state_var))
+                    else:
+                        x0 = initial_state
+
+                except Exception as e:
+                    print('Error', e)
+                    try_reinforce = False
+
 
             if self.wandb:
+                print("\n\n----- WANDB LOG -----")
+                state_samples, input_samples, noiseless_samples = self.get_test_data_from_system(x0, 2.56, trial_index, 0.01, False)
+
                 # get cost
                 cost = (
                     self.cost_function(
@@ -237,22 +265,33 @@ class MC_PILCO(torch.nn.Module):
                     .numpy()
                     .squeeze()
                 )
-                wandb.log( {
-                    "episode_return": -cost,
-                    "episode_cost": cost,
-                } )
+                # get cost on 100Hz
+                cost_100 = (
+                    self.cost_function(
+                        torch.tensor(noiseless_samples, dtype=self.dtype, device=self.device).unsqueeze(1),
+                        torch.tensor(input_samples, dtype=self.dtype, device=self.device).unsqueeze(1),
+                        trial_index=trial_index,
+                    )[0]
+                    .detach()
+                    .cpu()
+                    .numpy()
+                    .squeeze()
+                )
 
-            # test policy
-            if random_initial_state == True:
-                if flg_init_uniform == True:
-                    x0 = np.random.uniform(init_low_bound, init_up_bound)
-                elif flg_init_multi_gauss == True:
-                    num_init = np.random.randint(initial_state.shape[0])
-                    x0 = np.random.normal(initial_state[num_init, :], np.sqrt(initial_state_var[num_init, :]))
-                else:
-                    x0 = np.random.normal(initial_state, np.sqrt(initial_state_var))
-            else:
-                x0 = initial_state
+                ep_ret = -cost_100
+                cumulative_return += ep_ret
+                if ep_ret > highest_return:
+                    highest_return = ep_ret
+
+                wandb.log( {
+                    "episode_return": ep_ret,
+                    "cumulative_return": cumulative_return,
+                    "highest_return": highest_return,
+
+                    "episode_cost": cost_100,
+                    "episode_cost_training": cost,
+                    "episode_return_training": -cost,
+                } )
 
             print("\n\n----- APPLY THE CONTROL POLICY -----")
             # interact with the system
@@ -718,6 +757,27 @@ class MC_PILCO(torch.nn.Module):
         self.num_data_collection += 1
         # add data to model_learning object
         self.model_learning.add_data(new_state_samples=state_samples, new_input_samples=input_samples)
+
+
+    def get_test_data_from_system(self, initial_state, T_exploration, trial_index, T_sampling, flg_exploration=False):
+        """
+        Apply exploration/control policy to the system and collect interaction data
+        """
+        # select the policy
+        if flg_exploration:
+            current_policy = self.rand_exploration_policy
+        else:
+            current_policy = self.control_policy
+
+        # method for interacting with ODE-simulated system
+        state_samples, input_samples, noiseless_samples = self.system.rollout(
+            s0=initial_state,
+            policy=current_policy.get_np_policy(),
+            T=T_exploration,
+            dt=T_sampling,
+            noise=self.std_meas_noise,
+        )
+        return state_samples, input_samples, noiseless_samples
 
     def load_policy_from_log(self, num_trial, folder="results_tmp/1/"):
         """
